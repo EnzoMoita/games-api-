@@ -1,12 +1,16 @@
-import { Controller, Get, Query, UseInterceptors, HttpStatus } from '@nestjs/common';
+import { Controller, Get, Query, UseInterceptors, HttpStatus, UseGuards } from '@nestjs/common';
 import { CacheInterceptor } from '@nestjs/cache-manager';
-import { ApiTags, ApiOperation, ApiQuery, ApiResponse } from '@nestjs/swagger';
+import { ApiTags, ApiOperation, ApiQuery, ApiResponse, ApiBearerAuth } from '@nestjs/swagger';
 import { GamesService } from './games.service';
 import { SearchGamesDto } from './dto/search-games.dto';
 import { ListGamesDto } from './dto/list-games.dto';
+import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
+import { CurrentUser } from '../auth/decorators/current-user.decorator';
 
 @ApiTags('games')
 @Controller('games')
+@ApiBearerAuth()
+@UseGuards(JwtAuthGuard)
 export class GamesController {
   constructor(private readonly gamesService: GamesService) {}
 
@@ -76,7 +80,8 @@ export class GamesController {
       }
     }
   })
-  async searchGames(@Query() query: SearchGamesDto) {
+  async searchGames(@Query() query: SearchGamesDto, @CurrentUser() user) {
+    console.log('User performing search:', user.email);
     return this.gamesService.searchGames(query.title);
   }
 
@@ -162,7 +167,8 @@ export class GamesController {
     type: Number,
     example: 10
   })
-  async listGames(@Query() query: ListGamesDto) {
+  async listGames(@Query() query: ListGamesDto, @CurrentUser() user) {
+    console.log('User listing games:', user.email);
     return this.gamesService.listGames(query);
   }
 }

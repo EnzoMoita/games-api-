@@ -1,9 +1,11 @@
 # Games API
 
-Uma API NestJS para gerenciamento de informações de jogos, com PostgreSQL, cache em Redis e integração com a API da RAWG.
+Uma API NestJS para gerenciamento de informações de jogos, com PostgreSQL, cache em Redis, autenticação JWT e integração com a API da RAWG.
 
 ## Features
 
+- Autenticação JWT com registro e login de usuários
+- Rotas protegidas com middleware de autenticação
 - Busca de jogos utilizando a API da RAWG
 - Cache de resultados com Redis
 - Armazenamento de dados dos jogos em PostgreSQL
@@ -23,7 +25,8 @@ Uma API NestJS para gerenciamento de informações de jogos, com PostgreSQL, cac
    ```bash
    npm install
    ```
-3. Copie o `.env.example` para `.env` e preencha com os valores corretos
+3. Copie o `.env.example` para `.env` e preencha com os valores corretos:
+
 4. Inicie o banco de dados e o Redis:
    ```bash
    docker-compose up -d
@@ -43,7 +46,44 @@ Com a aplicação em execução, acesse http://localhost:3000/api para visualiza
 
 ## Endpoints da API
 
-### GET /games/search
+### Autenticação
+
+#### POST /auth/register
+
+Registra um novo usuário no sistema.
+
+Body:
+
+```json
+{
+  "email": "user@example.com",
+  "password": "senha123",
+  "name": "Seu nome"
+}
+```
+
+#### POST /auth/login
+
+Realiza login e retorna um token JWT.
+
+Body:
+
+```json
+{
+  "email": "user@example.com",
+  "password": "senha123"
+}
+```
+
+### Jogos (Requer Autenticação)
+
+Para acessar estes endpoints, é necessário incluir o token JWT no header:
+
+```
+Authorization: Bearer <seu_token_jwt>
+```
+
+#### GET /games/search
 
 Busca um jogo específico pelo título.
 
@@ -58,7 +98,7 @@ GET http://localhost:3000/games/search?title=elden ring
 GET http://localhost:3000/games/search?title=the witcher 3
 ```
 
-### GET /games
+#### GET /games
 
 Lista os jogos armazenados com suporte a filtros e paginação.
 
@@ -90,3 +130,11 @@ npm run test:e2e
 npm run build
 npm run start:prod
 ```
+
+## Segurança
+
+- Senhas são armazenadas com hash usando bcrypt
+- Tokens JWT expiram em 24 horas
+- Todas as rotas de jogos são protegidas e requerem autenticação
+- Validação de dados usando class-validator
+- Proteção contra ataques comuns usando Helmet
