@@ -51,6 +51,13 @@ Query Parameters:
 
 - `title` (string, required): Título do jogo para busca
 
+Exemplos:
+
+```bash
+GET http://localhost:3000/games/search?title=elden ring
+GET http://localhost:3000/games/search?title=the witcher 3
+```
+
 ### GET /games
 
 Lista os jogos armazenados com suporte a filtros e paginação.
@@ -58,9 +65,18 @@ Lista os jogos armazenados com suporte a filtros e paginação.
 Query Parameters:
 
 - `title` (string, optional): Filtrar por título
-- `platform` (string, optional): Filtrar por plataforma
+- `platform` (string, opcional): Filtrar por nome da plataforma
 - `page` (number, optional, default: 1): Página atual
 - `limit` (number, optional, default: 10): Itens por página
+
+Exemplos:
+
+```bash
+GET http://localhost:3000/games
+GET http://localhost:3000/games?page=2&limit=5
+GET http://localhost:3000/games?platform=PC
+GET http://localhost:3000/games?title=god&platform=PS5&page=1&limit=3
+```
 
 ## Testes
 
