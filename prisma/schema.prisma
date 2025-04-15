@@ -8,15 +8,20 @@ datasource db {
 }
 
 model Game {
-  id          String   @id @default(uuid())
-  title       String
-  description String
-  platforms   String[]
-  releaseDate DateTime
-  rating      Float
-  coverImage  String
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
+  id               String    @id @default(uuid())
+  slug             String    @unique
+  name             String
+  description      String?
+  released         DateTime?
+  background_image String?
+  rating           Float?
+  rating_top       Int?
+  metacritic       Int?
+  playtime         Int?
+  platforms        String[]
+  stores           String[]
+  created_at       DateTime  @default(now())
+  updated_at       DateTime  @updatedAt
 
   @@map("games")
 }

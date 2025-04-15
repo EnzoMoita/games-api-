@@ -15,66 +15,100 @@ export class GamesService {
   ) {}
 
   async searchGames(title: string) {
-    // Try to get from cache first
-    const cachedGame = await this.cacheManager.get(`game:${title}`);
+    // Try cache first
+    const cacheKey = `game:${title.toLowerCase()}`;
+    const cachedGame = await this.cacheManager.get(cacheKey);
     if (cachedGame) {
       return cachedGame;
     }
 
-    // Check database
-    const gameInDb = await this.prisma.game.findFirst({
-      where: {
-        title: {
-          contains: title,
-          mode: 'insensitive',
-        },
-      },
-    });
-
-    if (gameInDb) {
-      await this.cacheManager.set(`game:${title}`, gameInDb, 3600);
-      return gameInDb;
-    }
-
-    // Fetch from RAWG API
+    // Fetch from RAWG API first
     const gameData = await this.rawgService.searchGame(title);
     if (!gameData) {
       return null;
     }
 
-    // Save to database
-    const savedGame = await this.prisma.game.create({
-      data: {
-        title: gameData.title,
-        description: gameData.description,
-        platforms: gameData.platforms,
-        releaseDate: new Date(gameData.releaseDate),
-        rating: gameData.rating,
-        coverImage: gameData.coverImage,
+    // Check if game already exists in database
+    let game = await this.prisma.game.findFirst({
+      where: {
+        slug: gameData.slug,
       },
     });
 
-    // Save to cache
-    await this.cacheManager.set(`game:${title}`, savedGame, 3600);
+    // If not in database, save it
+    if (!game) {
+      game = await this.prisma.game.create({
+        data: {
+          slug: gameData.slug,
+          name: gameData.name,
+          description: gameData.description_raw,
+          released: gameData.released ? new Date(gameData.released) : null,
+          background_image: gameData.background_image,
+          rating: gameData.rating,
+          rating_top: gameData.rating_top,
+          metacritic: gameData.metacritic,
+          playtime: gameData.playtime,
+          platforms: gameData.platforms?.map(p => p.platform.name) || [],
+          stores: gameData.stores?.map(s => s.store.name) || [],
+        },
+      });
+    }
 
-    return savedGame;
+    // Save to cache
+    await this.cacheManager.set(cacheKey, game, 3600);
+
+    return game;
   }
 
   async listGames(query: ListGamesDto) {
     const { title, platform, page = 1, limit = 10 } = query;
-    
-    // Ensure page and limit are numbers
+
+    // If title is provided, search RAWG API
+    if (title) {
+      const gameData = await this.rawgService.searchGames(title);
+      
+      // Process and save games to database
+      const games = await Promise.all(
+        gameData.results.map(async (game) => {
+          let existingGame = await this.prisma.game.findFirst({
+            where: { slug: game.slug },
+          });
+
+          if (!existingGame) {
+            existingGame = await this.prisma.game.create({
+              data: {
+                slug: game.slug,
+                name: game.name,
+                description: game.description_raw || '',
+                released: game.released ? new Date(game.released) : null,
+                background_image: game.background_image,
+                rating: game.rating,
+                rating_top: game.rating_top,
+                metacritic: game.metacritic,
+                playtime: game.playtime,
+                platforms: game.platforms?.map(p => p.platform.name) || [],
+                stores: game.stores?.map(s => s.store.name) || [],
+              },
+            });
+          }
+
+          return existingGame;
+        })
+      );
+
+      return {
+        count: gameData.count,
+        results: games,
+        next: gameData.next,
+        previous: gameData.previous,
+      };
+    }
+
+    // If no title, return from database with pagination
     const skip = (Number(page) - 1) * Number(limit);
     const take = Number(limit);
 
     const where: Prisma.GameWhereInput = {};
-
-    if (title) {
-      where.title = {
-        contains: title,
-        mode: 'insensitive',
-      };
-    }
 
     if (platform) {
       where.platforms = {
@@ -82,28 +116,23 @@ export class GamesService {
       };
     }
 
-    try {
-      const [games, total] = await Promise.all([
-        this.prisma.game.findMany({
-          where,
-          skip,
-          take,
-        }),
-        this.prisma.game.count({ where }),
-      ]);
-
-      return {
-        data: games,
-        meta: {
-          total,
-          page: Number(page),
-          limit: Number(limit),
-          totalPages: Math.ceil(total / Number(limit)),
+    const [games, total] = await Promise.all([
+      this.prisma.game.findMany({
+        where,
+        skip,
+        take,
+        orderBy: {
+          rating: 'desc',
         },
-      };
-    } catch (error) {
-      console.error('Error in listGames:', error);
-      throw error;
-    }
+      }),
+      this.prisma.game.count({ where }),
+    ]);
+
+    return {
+      count: total,
+      results: games,
+      next: total > skip + take ? `/games?page=${page + 1}&limit=${limit}` : null,
+      previous: page > 1 ? `/games?page=${page - 1}&limit=${limit}` : null,
+    };
   }
 }
