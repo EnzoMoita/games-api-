@@ -1,4 +1,4 @@
-import { Injectable, Inject } from '@nestjs/common';
+import { Injectable, Inject, NotFoundException, InternalServerErrorException } from '@nestjs/common';
 import { CACHE_MANAGER } from '@nestjs/cache-manager';
 import { Cache } from 'cache-manager';
 import { PrismaService } from '../prisma/prisma.service';
@@ -22,86 +22,97 @@ export class GamesService {
       return cachedGame;
     }
 
-    // Fetch from RAWG API first
-    const gameData = await this.rawgService.searchGame(title);
-    if (!gameData) {
-      return null;
-    }
+    try {
+      const gameData = await this.rawgService.searchGame(title);
+      
+      if (!gameData) {
+        throw new NotFoundException('Game not found');
+      }
 
-    // Check if game already exists in database
-    let game = await this.prisma.game.findFirst({
-      where: {
-        slug: gameData.slug,
-      },
-    });
-
-    // If not in database, save it
-    if (!game) {
-      game = await this.prisma.game.create({
-        data: {
+      // Check if game already exists in database
+      let game = await this.prisma.game.findFirst({
+        where: {
           slug: gameData.slug,
-          name: gameData.name,
-          description: gameData.description_raw,
-          released: gameData.released ? new Date(gameData.released) : null,
-          background_image: gameData.background_image,
-          rating: gameData.rating,
-          rating_top: gameData.rating_top,
-          metacritic: gameData.metacritic,
-          playtime: gameData.playtime,
-          platforms: gameData.platforms?.map(p => p.platform.name) || [],
-          stores: gameData.stores?.map(s => s.store.name) || [],
         },
       });
+
+      // If not in database, save it
+      if (!game) {
+        game = await this.prisma.game.create({
+          data: {
+            slug: gameData.slug,
+            name: gameData.name,
+            description: gameData.description_raw,
+            released: gameData.released ? new Date(gameData.released) : null,
+            background_image: gameData.background_image,
+            rating: gameData.rating,
+            rating_top: gameData.rating_top,
+            metacritic: gameData.metacritic,
+            playtime: gameData.playtime,
+            platforms: gameData.platforms?.map(p => p.platform.name) || [],
+            stores: gameData.stores?.map(s => s.store.name) || [],
+          },
+        });
+      }
+
+      // Save to cache
+      await this.cacheManager.set(cacheKey, game, 3600);
+
+      return game;
+    } catch (error) {
+      if (error instanceof NotFoundException) {
+        throw error;
+      }
+
+      throw new InternalServerErrorException('Error fetching game data');
     }
-
-    // Save to cache
-    await this.cacheManager.set(cacheKey, game, 3600);
-
-    return game;
   }
 
   async listGames(query: ListGamesDto) {
     const { title, platform, page = 1, limit = 10 } = query;
 
-    // If title is provided, search RAWG API
+
     if (title) {
-      const gameData = await this.rawgService.searchGames(title);
-      
-      // Process and save games to database
-      const games = await Promise.all(
-        gameData.results.map(async (game) => {
-          let existingGame = await this.prisma.game.findFirst({
-            where: { slug: game.slug },
-          });
-
-          if (!existingGame) {
-            existingGame = await this.prisma.game.create({
-              data: {
-                slug: game.slug,
-                name: game.name,
-                description: game.description_raw || '',
-                released: game.released ? new Date(game.released) : null,
-                background_image: game.background_image,
-                rating: game.rating,
-                rating_top: game.rating_top,
-                metacritic: game.metacritic,
-                playtime: game.playtime,
-                platforms: game.platforms?.map(p => p.platform.name) || [],
-                stores: game.stores?.map(s => s.store.name) || [],
-              },
+      try {
+        const gameData = await this.rawgService.searchGames(title);
+        
+        const games = await Promise.all(
+          gameData.results.map(async (game) => {
+            let existingGame = await this.prisma.game.findFirst({
+              where: { slug: game.slug },
             });
-          }
 
-          return existingGame;
-        })
-      );
+            if (!existingGame) {
+              existingGame = await this.prisma.game.create({
+                data: {
+                  slug: game.slug,
+                  name: game.name,
+                  description: game.description_raw || '',
+                  released: game.released ? new Date(game.released) : null,
+                  background_image: game.background_image,
+                  rating: game.rating,
+                  rating_top: game.rating_top,
+                  metacritic: game.metacritic,
+                  playtime: game.playtime,
+                  platforms: game.platforms?.map(p => p.platform.name) || [],
+                  stores: game.stores?.map(s => s.store.name) || [],
+                },
+              });
+            }
 
-      return {
-        count: gameData.count,
-        results: games,
-        next: gameData.next,
-        previous: gameData.previous,
-      };
+            return existingGame;
+          })
+        );
+
+        return {
+          count: gameData.count,
+          results: games,
+          next: gameData.next,
+          previous: gameData.previous,
+        };
+      } catch (error) {
+        throw new InternalServerErrorException('Error fetching game data');
+      }
     }
 
     // If no title, return from database with pagination

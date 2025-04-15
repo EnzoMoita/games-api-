@@ -41,15 +41,31 @@ Uma API NestJS para gerenciamento de informações de jogos, com PostgreSQL, cac
 
 Com a aplicação em execução, acesse http://localhost:3000/api para visualizar a documentação via Swagger.
 
-### Endpoints
+## Endpoints da API
 
-- `GET /games/search?title=game_title` - Buscar jogos
-- `GET /games?title=filter&platform=filter&page=1&limit=10` - Listar jogos com filtros e paginação
+### GET /games/search
+
+Busca um jogo específico pelo título.
+
+Query Parameters:
+
+- `title` (string, required): Título do jogo para busca
+
+### GET /games
+
+Lista os jogos armazenados com suporte a filtros e paginação.
+
+Query Parameters:
+
+- `title` (string, optional): Filtrar por título
+- `platform` (string, optional): Filtrar por plataforma
+- `page` (number, optional, default: 1): Página atual
+- `limit` (number, optional, default: 10): Itens por página
 
 ## Testes
 
 ```bash
-npm run test
+npm run test:e2e
 ```
 
 ## Build para Produção

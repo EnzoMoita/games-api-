@@ -8,7 +8,7 @@ async function bootstrap() {
 
   app.useGlobalPipes(
     new ValidationPipe({
-      transform: true, // Enable transformation
+      transform: true,
       transformOptions: {
         enableImplicitConversion: true,
       },
@@ -17,8 +17,23 @@ async function bootstrap() {
 
   const config = new DocumentBuilder()
     .setTitle('Games API')
-    .setDescription('API for managing games information')
+    .setDescription(`
+      API para gerenciamento de informações de jogos, integrando com a RAWG API.
+      
+      Recursos Principais
+      - Busca de jogos na RAWG API
+      - Cache de resultados
+      - Armazenamento em PostgreSQL
+      - Filtros e paginação
+      
+       Fluxo de Dados
+      1. Ao buscar um jogo, primeiro verificamos o cache
+      2. Se não encontrado, buscamos na RAWG API
+      3. Os dados são salvos no PostgreSQL
+      4. Resultados são cacheados para futuras consultas
+    `)
     .setVersion('1.0')
+    .addTag('games', 'Operações relacionadas a jogos')
     .build();
 
   const document = SwaggerModule.createDocument(app, config);
